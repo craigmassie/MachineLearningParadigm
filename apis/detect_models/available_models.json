@@ -1,0 +1,12 @@
+{
+    "mappings":{
+        "image":["cnn"]
+    },
+    "architectures": {
+        "cnn":[
+            {"resnet": "location"},
+            {"vgg": "location"},
+            {"inception": "location"}
+        ]
+    }
+}
