@@ -17,7 +17,7 @@ def post():
     file_location = d["file_location"]
     blob_files = get_blobs_from_location(file_location)
     content_type , filtered_files= most_common_file_type(blob_files)
-    verified_files = verify_images if content_type == "images" else filtered_files
+    verified_files = verify_images(file_location) if content_type == "images" else filtered_files
     return({"content_type": content_type, "verified": verified_files})
 
 def get_blobs_from_location(file_location):
