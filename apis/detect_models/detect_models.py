@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, abort
 from flask_restful import Resource, Api
 import json
 
@@ -9,7 +9,11 @@ ARCHITECTURE_FILE_LOCATION = "available_models.json"
 @app.route('/detectModels', methods=['GET'])
 def get():
     d = request.get_json()
-    filetype = d["filetype"]
+    try:
+        filetype = d["filetype"]
+    except KeyError:
+        app.logger.error(f"'filetype' key not found in request body. Unable to find suitable models.")
+        abort(400)
     return model_filetype_match(filetype)
 
 def model_filetype_match(filetype):

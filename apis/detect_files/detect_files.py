@@ -14,7 +14,11 @@ DATATYPE_FILE_LOCATION = "accepted_datatypes.json"
 @app.route('/detectFiles', methods=['POST'])
 def post():
     d = request.get_json()
-    file_location = d["file_location"]
+    try:
+        file_location = d["file_location"]
+    except KeyError:
+        app.logger.error(f"'file_location' key not found in request body. Unable to determine file type without location.")
+        abort(400)
     blob_files = get_blobs_from_location(file_location)
     content_type , filtered_files= most_common_file_type(blob_files)
     verified_files = verify_images(file_location) if content_type == "images" else filtered_files
