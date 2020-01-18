@@ -1,12 +1,15 @@
-from flask import Flask, request
+from flask import Flask, request, abort
 from flask_restful import Resource, Api
 from os import listdir
-from os.path import isfile, join
+from os.path import isfile, join, splitext
 import json
 from PIL import Image
+from collections import defaultdict
+from sys import exc_info
 
 app = Flask(__name__)
 api = Api(app)
+DATATYPE_FILE_LOCATION = "accepted_datatypes.json"
 
 @app.route('/detectFiles', methods=['POST'])
 def post():
@@ -14,14 +17,13 @@ def post():
     file_location = d["file_location"]
     blob_files = get_blobs_from_location(file_location)
     content_type , filtered_files= most_common_file_type(blob_files)
-    verified_files = []
-    if content_type == "images":
-        verified_files = verify_images(file_location)
-    elif content_type == "structured_data":
-        verified_files = filtered_files
+    verified_files = verify_images if content_type == "images" else filtered_files
     return({"content_type": content_type, "verified": verified_files})
 
 def get_blobs_from_location(file_location):
+    '''
+    TODO: Implement read from Azure Blob Storage.
+    '''
     return (listdir(file_location))
 
 def valid_image(image_location):
@@ -39,32 +41,39 @@ def verify_images(file_location):
     verified_images = [im for im in verified_files if valid_image(im)]
     return verified_images
 
-def most_common_file_type(file_location):
+def get_max_class(d):  
     '''
-    Returns the most prevalent class of data within a folder.
+    Given a dictionary, returns the key, value pair with the longest length value.
     '''
-    d = {}
-    with open('accepted_datatypes.json') as json_file:
-        data = json.load(json_file)
-        d = {}
-        file_type_map = {}
-        for f in file_location:
-            for attribute in data.keys():
-                for file_type in data[attribute]:
-                    file_type_map[file_type] = attribute
-                    if f.endswith(file_type):
-                        if attribute in d:
-                            d[attribute].append(f)
-                        else:
-                            d[attribute] = [f]
+    try:
+        max_class = max(d, key=lambda k: len(d[k]))
+        return max_class, d[max_class]
+    except ValueError as e:
+        app.logger.error(f"No acceptable files exists. Unable to procees with subsequent workflow. {e}" )
+        abort(400)
 
-    max_files = []
-    max_name = ""
-    for dtype in d:
-        if len(d[dtype]) > len(max_files):
-            max_files = d[dtype]
-            max_name = dtype
-    return (max_name, max_files)
+def most_common_file_type(blobs_at_location):
+    '''
+    Given a list of file names at a storage location, returns the most prevalent class of data within a folder, 
+    alongisde the files of that class.
+    '''
+    class_files = defaultdict(list)
+    with open(DATATYPE_FILE_LOCATION) as json_file:
+        accepted_datatypes = json.load(json_file)
+        file_extension_class = {}
+        #JSON traversal to determine acceptable data types.
+        for data_class in accepted_datatypes.keys():
+            for accepted_extension in accepted_datatypes[data_class]:
+                file_extension_class[accepted_extension] = data_class
+
+        #Assign files to their respective class
+        for f in blobs_at_location:
+            _, file_extension = splitext(f)
+            if file_extension in file_extension_class:
+                data_class = file_extension_class[file_extension]
+                class_files[data_class].append(f)
+
+    return get_max_class(class_files)
 
     
 if __name__ == '__main__':

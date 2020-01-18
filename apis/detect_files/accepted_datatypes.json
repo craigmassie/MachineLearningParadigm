@@ -1,4 +1,4 @@
 {
-	"images": [ "png", "gif", "jpg" ],
-	"structured_data": [ "csv", "txt", "json"]
+	"images": [ ".png", ".gif", ".jpg" ],
+	"structured_data": [ ".csv", ".txt", ".json"]
 }
