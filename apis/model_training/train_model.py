@@ -10,7 +10,7 @@ app = Flask(__name__)
 api = Api(app)
 batch_size = 128
 num_classes = 10
-epochs = 12
+epochs = 5
 
 def request_key_exists(d, request_key):
     try:
@@ -56,7 +56,7 @@ def post():
     custom_model = tf.keras.Model(inputs=vgg_model.input, outputs=x)
 
     # Make sure that the pre-trained bottom layers are not trainable
-    for layer in custom_model.layers[:7]:
+    for layer in custom_model.layers[:3]:
         layer.trainable = False
     app.logger.info(custom_model.summary())
     # Do not forget to compile it

@@ -4,4 +4,5 @@ COPY . /app
 WORKDIR /app
 RUN pip install -r requirements.txt
 ENTRYPOINT ["python"]
-CMD ["file_discovery.py"]
+CMD ["detect_files.py"]
+EXPOSE 5000

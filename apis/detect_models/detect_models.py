@@ -8,6 +8,9 @@ ARCHITECTURE_FILE_LOCATION = "available_models.json"
 
 @app.route('/detectModels', methods=['GET'])
 def get():
+    '''
+    @raise KeyError: Incorrect request given, no "filetype" key.
+    '''
     d = request.get_json()
     try:
         filetype = d["filetype"]
@@ -20,6 +23,8 @@ def model_filetype_match(filetype):
     '''
     Given the filetype provided, determines which type of architectures are suitable.
     Subsequently, based on the architcture, will return pre-existing models of such, and their location.
+    @param filetype: the class of file that the user is working with
+    @return: dict of form {"models": type of models compatible with filetype}
     '''
     architectures = {}
     models = []

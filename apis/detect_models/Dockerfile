@@ -5,3 +5,4 @@ WORKDIR /app
 RUN pip install -r requirements.txt
 ENTRYPOINT ["python"]
 CMD ["detect_models.py"]
+EXPOSE 5000
