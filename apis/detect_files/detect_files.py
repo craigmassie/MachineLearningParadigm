@@ -4,9 +4,11 @@ import os
 from os.path import isfile, join, splitext
 import json
 from collections import defaultdict
-from sys import exc_info
+import sys
 import uuid
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+sys.path.append("../azure_helper_functions")
+from azure_connection import init_connection, get_blobs_from_container
 
 app = Flask(__name__)
 api = Api(app)
@@ -25,6 +27,8 @@ def post():
         app.logger.error(f"'container_name' key not found in request body. Unable to determine file type without location.")
         abort(400)
     blob_service_client, container_client = init_connection(container_name)
+    if blob_service_client == 400:
+        abort(400)
     blob_objects = get_blobs_from_container(container_client)
     content_type , filtered_blobs= most_common_file_type(blob_objects)
     '''Verification avoided for now. See function comments'''
@@ -35,23 +39,6 @@ def post():
 '''
 HELPER FUNCTIONS
 '''
-
-def init_connection(container_name):
-    if (os.environ.get("AZURE_STORAGE_CONNECTION_STRING") is not None):
-        connect_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    else:
-        app.logger.error(f"'AZURE_STORAGE_CONNECTION_STRING' environment variable not set.")
-        abort(400)
-    try:
-        blob_service_client = BlobServiceClient.from_connection_string(connect_str)
-        container_client = blob_service_client.get_container_client(container_name)
-    except ConnectionError as err:
-        app.logger.error(f"'AZURE_STORAGE_CONNECTION_STRING' environment variable not set. {err}")
-        abort(400)
-    return blob_service_client, container_client
-
-def get_blobs_from_container(container_client):
-    return container_client.list_blobs()
 
 def valid_image(blob):
     try:

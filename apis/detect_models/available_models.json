@@ -4,9 +4,7 @@
     },
     "architectures": {
         "cnn":[
-            {"resnet": "location"},
-            {"vgg": "location"},
-            {"inception": "location"}
+            {"model_locations": "./testuploads/models/mlweb-supplied/cnn"
         ]
     }
 }
