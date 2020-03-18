@@ -9,7 +9,7 @@ class FitModel(Thread):
         self.model = model
         self.train_gen = train_gen
         self.test_gen = test_gen
-        self.unique_id = unique_id 
+        self.unique_id = str(unique_id)
         self.model_location = model_location
         self.epochs = epochs
         self.logger = logging.getLogger("model-training")
