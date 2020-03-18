@@ -5,6 +5,17 @@ then
   export $(cat /app/.env | sed 's/#.*//g' | xargs)
 fi
 
+# Manual IP resolution for Azure Storage endpoint, as recommended here:
+# https://github.com/epam/cloud-pipeline/issues/61#issuecomment-480773072
+hostname=${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net 
+ip=`dig +short $hostname | tail -1`
+if [ -n "$ip" ]; then
+    echo IP: $ip
+    echo "$ip  $hostname" >> /etc/hosts
+else
+    echo Could not resolve hostname.
+fi
+
 set -euo pipefail
 set -o errexit
 set -o errtrace
