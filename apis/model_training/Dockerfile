@@ -13,4 +13,4 @@ RUN apt-get update && \
 
 ENTRYPOINT ["python3.7"]
 CMD ["train_model.py"]
-EXPOSE 5000
+EXPOSE 5000 2222

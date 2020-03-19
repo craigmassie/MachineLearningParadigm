@@ -14,7 +14,6 @@ import uuid
 app = Flask(__name__)
 api = Api(app)
 num_classes = 10
-epochs = 1
 BLOBFUSE_MOUNT_SCRIPT = "/app/mount-blobfuse.sh"
 
 def _request_key_exists(d, request_key):
@@ -80,14 +79,24 @@ def _load_dataset_into_gen(dataset_location, expected_model_input):
         app.logger.error(f"Unable to find training data directory at location {test_data_location}")
 
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(validation_split=0.2)
-    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input)
+    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input, shuffle=True, seed=42)
 
     test_datagen = tf.keras.preprocessing.image.ImageDataGenerator()
-    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input)
+    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input, shuffle=True, seed=42)
     return train_generator, test_generator
 
 @app.route('/trainModel', methods=['POST'])
 def post():
+    """
+    Given environment variables specifiying Azure connection, and model/dataset location initialises transfer learning training.
+
+    Takes a POST request of the form:
+    {
+        "model_location": ${LOCATION_OF_BASELINE_MODEL},
+        "dataset_location": ${LOCATION_OF_TRAIN_TEST_DATA},
+        "epochs": ${NUM_OF_TRAINING_EPOCHS}
+    }
+    """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
     try:
         if os.path.isfile(BLOBFUSE_MOUNT_SCRIPT):
@@ -102,7 +111,7 @@ def post():
     d = request.get_json()
 
     #Retrieve info about model and dataset from body
-    model_location, dataset_location = _request_key_exists(d, "model_location"), _request_key_exists(d, "dataset_location")
+    model_location, dataset_location, epochs = _request_key_exists(d, "model_location"), _request_key_exists(d, "dataset_location"), _request_key_exists(d, "epochs")
 
     #Load the model stored at the requested model location
     initial_model = _get_initial_model(model_location)
@@ -119,15 +128,15 @@ def post():
     #Add final layers to the model with num_classes to classify
     transfer_model = _add_classifier_to_model(initial_model, num_classes)
 
-    app.logger.info(f"Model Summary: {transfer_model.summary()}")
-
     transfer_model.compile(loss='categorical_crossentropy',
                         optimizer='rmsprop',
                         metrics=['accuracy'])
 
+    app.logger.info(f"Model Summary: {transfer_model.summary()}")
+
     # Create unique ID and initialise model training thread.
     unique_id = uuid.uuid1()
-    model_fit_thread = fit_model.FitModel(request.__copy__(), transfer_model, train_gen, test_gen, unique_id, model_location, epochs)
+    model_fit_thread = fit_model.FitModelFromGenerators(request.__copy__(), transfer_model, train_gen, test_gen, unique_id, model_location, epochs)
     model_fit_thread.start()
 
     #Model computation still run in thread and saved to blob storage, while Flask response returns successfully training process start.
