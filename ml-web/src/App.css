@@ -1,75 +1,79 @@
 .App {
-  text-align: center;
+	text-align: center;
 }
 
 .App-logo {
-  height: 40vmin;
-  pointer-events: none;
+	height: 40vmin;
+	pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+	.App-logo {
+		animation: App-logo-spin infinite 20s linear;
+	}
 }
 
 .App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+	background-color: #282c34;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	font-size: calc(10px + 2vmin);
+	color: white;
 }
 
 .App-link {
-  color: #61dafb;
+	color: #61dafb;
 }
 
 .navBar {
-  margin: 0px;
-  height: 64px;
-  background-color: blue;
+	margin: 0px;
+	height: 64px;
+	background-color: blue;
 }
 
-.uploadSection{
-    height: calc(100vh - 64px);
-    margin: 0 auto;
-    display: -ms-flexbox;
-    display: -webkit-flex;
-    display: flex;
-    -ms-flex-align: center;
-    -webkit-align-items: center;
-    -webkit-box-align: center;
-    align-items: center;
-    text-align: center;
-    background-color: #eeeeee;
+.uploadDiv {
+	height: calc(100vh - 64px);
+	margin: 0 auto;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	-ms-flex-align: center;
+	-webkit-align-items: center;
+	-webkit-box-align: center;
+	align-items: center;
+	text-align: center;
+	background-color: #eeeeee;
 }
 
 .uploadSection section {
-  width:100%;
+	width: 100%;
 }
 
-#uploadMessage{
-  width: 100%;
+#uploadMessage {
+	width: 100%;
 }
 
-#fabNext{
-  position: absolute;
-    display: block;
-    top: 95vh;
-    left: 95vw;
-    height: 40px;
-    width: 40px;
+#fabNext {
+	position: absolute;
+	display: block;
+	top: 95vh;
+	left: 95vw;
+	height: 40px;
+	width: 40px;
 }
 
 @keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+#uploadSection {
+	width: 100%;
 }

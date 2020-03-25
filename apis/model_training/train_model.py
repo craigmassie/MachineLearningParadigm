@@ -141,6 +141,7 @@ def post():
 
     #Model computation still run in thread and saved to blob storage, while Flask response returns successfully training process start.
     if(model_fit_thread.is_alive()):
+        model_fit_thread.join()
         return f"Model successfully created and training. Model id: {unique_id}."
     else:
         return "Model training thread could not successfully be created."
