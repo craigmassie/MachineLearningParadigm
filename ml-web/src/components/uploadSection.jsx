@@ -2,13 +2,17 @@ import React, { Component } from 'react';
 import Dropzone from 'react-dropzone';
 import { BounceLoader } from 'react-spinners';
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import Models from './models';
+import { SAS } from '../constants/constants';
 
 class UserUploader extends Component {
 	state = {
 		uploaderVisibility: true,
 		uploadedDatatype: '',
 		azureBlobService: {},
-		containerClient: {}
+		containerClient: {},
+		availableModels: [],
+		datasetLocation: ''
 	};
 
 	componentDidMount() {
@@ -16,7 +20,7 @@ class UserUploader extends Component {
 	}
 
 	determineAvailableModels(fileExtension) {
-		let imageTypes = [ 'jpg', 'png', 'bmp', 'gif' ];
+		const imageTypes = [ 'jpg', 'png', 'bmp', 'gif' ];
 		if (imageTypes.indexOf(fileExtension) >= 0) {
 			return 'image';
 		} else {
@@ -33,11 +37,9 @@ class UserUploader extends Component {
 		 * Initialises the Azure Blob Service connection and saves to the current application state.
 		 */
 		try {
-			var sas =
-				'?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwl&st=2020-03-25T22%3A55%3A03Z&se=2020-03-28T22%3A55%3A00Z&sig=pzowXst9KtSAVxtF3Vyi1ysI55Ikb8AHvVFHEEbvB8I%3D';
 			console.log(process.env.REACT_APP_AZURE_STORAGE_ACCOUNT);
 			const blobServiceClient = new BlobServiceClient(
-				`https://${process.env.REACT_APP_AZURE_STORAGE_ACCOUNT}.blob.core.windows.net${sas}`
+				`https://${process.env.REACT_APP_AZURE_STORAGE_ACCOUNT}.blob.core.windows.net${SAS}`
 			);
 			this.setState({ azureBlobService: blobServiceClient });
 		} catch (err) {
@@ -47,8 +49,8 @@ class UserUploader extends Component {
 
 	initContainerClient = async () => {
 		try {
-			var azureBlobService = this.state.azureBlobService;
-			var containerName = process.env.REACT_APP_AZURE_CONTAINER_NAME;
+			const azureBlobService = this.state.azureBlobService;
+			const containerName = process.env.REACT_APP_AZURE_CONTAINER_NAME;
 			const n_containerClient = await azureBlobService.getContainerClient(containerName);
 			this.setState({ containerClient: n_containerClient });
 		} catch (err) {
@@ -56,37 +58,28 @@ class UserUploader extends Component {
 		}
 	};
 
-	// uploadFile = async (fileName, fileContent) => {
-	// 	const blockBlobClient = this.state.containerClient.getBlockBlobClient(fileName);
-	// 	const uploadBlobResponse = await blockBlobClient.upload(fileContent, Buffer.byteLength(fileContent));
-	// };
-
 	async handleDrop(acceptedFiles) {
-		let fileExtension = 'zip';
+		const fileExtension = 'zip';
 		const reader = new FileReader();
 		reader.onabort = () => console.log('file reading was aborted');
 		reader.onerror = () => console.log('file reading has failed');
 		reader.onload = () => {
 			const binaryStr = reader.result;
 		};
-		var file = acceptedFiles[0];
+		const file = acceptedFiles[0];
 		await this.initContainerClient();
-		let currExtension = this.fileExtensionExtract(file.name);
+		const currExtension = this.fileExtensionExtract(file.name);
 		if (currExtension == fileExtension) {
-			console.log(this.state.containerClient);
-
-			var data = reader.readAsBinaryString(file);
-
-			console.log(data);
-
+			const file_name = `data/user-supplied/${Date.now()}_${file.name}`;
+			this.setState({ datasetLocation: file_name });
 			// Get a block blob client
-			const blockBlobClient = this.state.containerClient.getBlockBlobClient(file.name);
+			const blockBlobClient = this.state.containerClient.getBlockBlobClient(file_name);
 
 			const uploadBlobResponse = await blockBlobClient.upload(file, file.size);
 
 			console.log('Blob was uploaded successfully. requestId: ', uploadBlobResponse.requestId);
 		} else {
-			console.log('Inconsistent data types passed to web app.');
+			console.log('.zip must be passed to web application.');
 		}
 		this.setState({ uploadedDatatype: this.determineAvailableModels('jpg') });
 	}
@@ -94,9 +87,15 @@ class UserUploader extends Component {
 	searchingHandler() {
 		this.props.nowSearching();
 		this.setState({ uploaderVisibility: !this.state.uploaderVisibility });
+		this.listAvailableModels();
 	}
 
-	listAvailableModels() {}
+	async listAvailableModels() {
+		const n_containerClient = await this.state.azureBlobService.getContainerClient('testuploads');
+		const blobsRet = await n_containerClient.listBlobHierarchySegment('data/');
+		const modelArr = blobsRet['Blobs']['Blob'].map((blob) => blob['Name']).filter((blob) => blob.endsWith('.h5'));
+		this.setState({ availableModels: modelArr });
+	}
 
 	render() {
 		return (
@@ -121,8 +120,9 @@ class UserUploader extends Component {
 					</div>
 				)}
 				<button id="fabNext" onClick={() => this.searchingHandler()}>
-					<li id="models" />
+					Next
 				</button>
+				<Models availableModels={this.state.availableModels} datasetLocation={this.state.datasetLocation} />
 			</React.Fragment>
 		);
 	}
