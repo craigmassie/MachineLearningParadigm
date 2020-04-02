@@ -8,7 +8,7 @@ import { useState } from 'react';
 
 class App extends Component {
 	nowSearching() {
-		console.log("now searching");
+		console.log('now searching');
 	}
 
 	state = {
@@ -24,4 +24,4 @@ class App extends Component {
 	}
 }
 
-export default connect(null)(App);
+export default App;
