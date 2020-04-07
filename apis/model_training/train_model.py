@@ -10,6 +10,12 @@ import os
 from threading import Thread
 import fit_model
 import uuid 
+import zipfile
+import requests
+from PIL import Image
+from io import BytesIO
+import numpy as np
+
 
 app = Flask(__name__)
 api = Api(app)
@@ -70,6 +76,18 @@ def _get_initial_model(model_location):
     return tf.keras.models.load_model(model_location)
 
 def _load_dataset_into_gen(dataset_location, expected_model_input):
+    filename = os.path.basename(dataset_location).split('.')[0]
+    if(dataset_location.endswith(".zip")):
+        extraction_dir = os.path.splitext(dataset_location)[0]
+        if (not os.path.isdir(extraction_dir)):
+            app.logger.info(f"Found zip file, extracting to: {extraction_dir}")
+            try:
+                app.logger.info("Attempting extract.")
+                with zipfile.ZipFile(dataset_location,"r") as zip_ref:
+                    zip_ref.extractall(path=extraction_dir)
+            except Exception as e:
+                app.logger.error(f"Unable to extract zip file due to: {e}")
+        dataset_location = os.path.join(extraction_dir, filename)
     app.logger.info("Attempting to load dataset into generator.")
     training_data_location = os.path.join(dataset_location, "train")
     test_data_location = os.path.join(dataset_location, "test")
@@ -85,8 +103,31 @@ def _load_dataset_into_gen(dataset_location, expected_model_input):
     test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input, shuffle=True, seed=42)
     return train_generator, test_generator
 
+def _mount_blobfuse():
+    #Mount Azure Blob Storage as a virtual file system in Docker Container
+    try:
+        if os.path.isfile(BLOBFUSE_MOUNT_SCRIPT):
+            subprocess.call([BLOBFUSE_MOUNT_SCRIPT], shell=True)
+        else:
+            raise FileExistsError(f"{BLOBFUSE_MOUNT_SCRIPT} not found.")
+    except Exception as e:
+        app.logger.error(f"Issue with running blobfuse mounting script {BLOBFUSE_MOUNT_SCRIPT}, please ensure that file exists \
+            and that sufficient priveledges are given to all for execution. {e}")
+        return(400)
+
+def _url_to_img(model, image_url):
+    input_dimensions = _get_input_dimensions(model)
+    app.logger.info(f"id: {input_dimensions}")
+    response = requests.get(image_url)
+    img = Image.open(BytesIO(response.content)).convert('RGB')
+    if img.size != input_dimensions:
+        img = img.resize(input_dimensions, Image.LANCZOS)
+    x = tf.keras.preprocessing.image.img_to_array(img)
+    x = np.expand_dims(x, axis=0)
+    return x
+
 @app.route('/trainModel', methods=['POST'])
-def post():
+def train_model():
     """
     Given environment variables specifiying Azure connection, and model/dataset location initialises transfer learning training.
 
@@ -98,15 +139,7 @@ def post():
     }
     """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    try:
-        if os.path.isfile(BLOBFUSE_MOUNT_SCRIPT):
-            subprocess.call([BLOBFUSE_MOUNT_SCRIPT], shell=True)
-        else:
-            raise FileExistsError(f"{BLOBFUSE_MOUNT_SCRIPT} not found.")
-    except Exception as e:
-        app.logger.error(f"Issue with running blobfuse mounting script {BLOBFUSE_MOUNT_SCRIPT}, please ensure that file exists \
-            and that sufficient priveledges are given to all for execution. {e}")
-        return(400)
+    if(_mount_blobfuse()) == 400: return(400)
 
     d = request.get_json()
 
@@ -136,15 +169,46 @@ def post():
 
     # Create unique ID and initialise model training thread.
     unique_id = uuid.uuid1()
+    app.logger.info(f"ci {train_gen.class_indices}")
     model_fit_thread = fit_model.FitModelFromGenerators(request.__copy__(), transfer_model, train_gen, test_gen, unique_id, model_location, epochs)
     model_fit_thread.start()
-
+    app.logger.info(f"Output directory: {os.path.join(os.path.dirname(model_location), str(unique_id))}")
+    class_file_loc = os.path.join(os.path.dirname(model_location), str(unique_id), "classes.npy")
+    np.save(class_file_loc, train_gen.class_indices)
     #Model computation still run in thread and saved to blob storage, while Flask response returns successfully training process start.
     if(model_fit_thread.is_alive()):
-        model_fit_thread.join()
-        return f"Model successfully created and training. Model id: {unique_id}."
+        # model_fit_thread.join()
+        return f"Model successfully created and training. Model id: {str(unique_id)}."
     else:
         return "Model training thread could not successfully be created."
+
+@app.route('/testModel', methods=['POST'])
+def test_model():
+    #Mount Azure Blob Storage as a virtual file system in Docker Container
+    if(_mount_blobfuse()) == 400: return(400)
+
+    d = request.get_json()
+
+    #Retrieve info about model and dataset from body
+    model_location, image_url = _request_key_exists(d, "model_location"), _request_key_exists(d, "image_url")
+    if (os.path.isfile(model_location)):
+        try:
+            model = tf.keras.models.load_model(model_location)
+            image = _url_to_img(model, image_url)
+            prediction = np.squeeze(model.predict(image)).tolist()
+            prediction = [float(x) for x in prediction]
+            classes_file = os.path.join(os.path.dirname(model_location), "classes.npy")
+            if os.path.isfile(classes_file):
+                class_indices = np.load(classes_file, allow_pickle = True).item()
+                class_keys = [x.strip() for x in list(class_indices.keys())]
+                results_dict = { k:v for (k,v) in zip(class_keys, prediction)}
+                return results_dict
+            else:
+                results_dict = { k:v for (k,v) in enumerate(prediction)}
+                return results_dict
+        except Exception as e:
+            app.logger.error(f"Failed to load model. {e}")
+            return(400)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

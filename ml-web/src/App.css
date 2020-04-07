@@ -31,7 +31,7 @@
 .navBar {
 	margin: 0px;
 	height: 64px;
-	background-color: blue;
+	display: flex;
 }
 
 .uploadDiv {
@@ -47,9 +47,7 @@
 	text-align: center;
 }
 
-.uploadDiv 
-
-.uploadSection section {
+.uploadDiv .uploadSection section {
 	width: 100%;
 }
 
@@ -140,28 +138,28 @@
 	}
 }
 
-.archName{
-	display: inline-block; 
+.archName {
+	display: inline-block;
 	text-align: center;
 }
 
-#inlineHeader{
+#inlineHeader {
 	display: inline-block;
 }
 
-#faInfo{
+#faInfo {
 	padding: 10px;
 }
 
-.popOverText{
+.popOverText {
 	background-color: azure;
 }
 
-.css-3fvcat{
-	margin:auto;
+.css-3fvcat {
+	margin: auto;
 }
 
-.modelCard{
+.modelCard {
 	width: 50%;
 	margin: auto;
 	background: white;
@@ -173,29 +171,31 @@
 	text-align: left;
 }
 
-.modelCard img{
+.modelCard img {
 	max-width: 75%;
 }
 
-.modelCard p, h2, h3 {
+.modelCard p,
+h2,
+h3 {
 	padding: 0 50px;
 }
 
-.modelCard h1{
+.modelCard h1 {
 	display: inline-block;
 	background: #f04e4c;
 }
 
-.modelCard button{
+.modelCard button {
 	height: 70px;
-    width: 70px;
-    border-radius: 50%;
-    background: #f04e4c;
-    color: white;
-    font-weight: bold;
-    display: block;
-    float: right;
-    cursor: pointer;
+	width: 70px;
+	border-radius: 50%;
+	background: #f04e4c;
+	color: white;
+	font-weight: bold;
+	display: block;
+	float: right;
+	cursor: pointer;
 }
 
 .modelCard:hover {
@@ -205,19 +205,50 @@
 
 #uploadSection p {
 	display: inline-block;
-    background: #f04e4c;
-    padding: 10px;
-    cursor: pointer;
-}
-
-.popOverText{
-	max-width: 90%;
-}
-
-#faInfo{
+	background: #f04e4c;
+	padding: 10px;
 	cursor: pointer;
 }
 
-.filter-green{
-	filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);
+.popOverText {
+	max-width: 90%;
+}
+
+#faInfo {
+	cursor: pointer;
+}
+
+#nav {
+	width: 100%;
+	float: left;
+	padding: 0;
+	list-style: none;
+}
+#nav li {
+	float: left;
+}
+
+#nav li a {
+	display: block;
+	padding: 8px 15px;
+	text-decoration: none;
+	font-weight: bold;
+	color: black;
+	border-right: 1px solid #ccc;
+}
+
+.modelArchs {
+	text-align: center;
+}
+
+.modelsTraining {
+	text-align: center;
+}
+
+.modelsTraining p {
+	font-size: 60%;
+}
+
+#noTrain {
+	text-align: center;
 }

@@ -4,7 +4,7 @@ import { BounceLoader } from 'react-spinners';
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
 import Models from './models';
 import { SAS } from '../constants/constants';
-import { fileExtensionExtract, fileNameExtract, createJsonPayload, fileCurrentDirectory } from '../helpers/helper';
+import { fileExtensionExtract, createJsonPayload, fileCurrentDirectory, blobToString } from '../helpers/helper';
 import { POST_URL } from '../constants/constants';
 import ReactMarkdown from 'react-markdown';
 
@@ -12,8 +12,6 @@ class UserUploader extends Component {
 	state = {
 		uploaderVisibility: true,
 		uploadedDatatype: '',
-		azureBlobService: {},
-		containerClient: {},
 		availableModels: {},
 		datasetLocation: '',
 		modelSelected: {}
@@ -24,12 +22,7 @@ class UserUploader extends Component {
 		this.loadModelDetails = this.loadModelDetails.bind(this);
 	}
 
-	async componentDidMount() {
-		await this.initAzureBlobService();
-		await this.initContainerClient();
-	}
-
-	trainModel(modelLocation, datasetLocation, blobFuse = true) {
+	async trainModel(modelLocation, datasetLocation, blobFuse = true) {
 		if (blobFuse) {
 			modelLocation = '/mnt/blobfusetmp/' + modelLocation;
 			datasetLocation = '/mnt/blobfusetmp/' + datasetLocation;
@@ -49,8 +42,9 @@ class UserUploader extends Component {
 		xhr.setRequestHeader('Content-Type', 'application/json');
 		const jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 1));
 		xhr.send(jsonPayload);
-		console.log(jsonPayload);
-		return xhr.responseText;
+		const resp = xhr.responseText;
+		console.log(resp);
+		return resp;
 	}
 
 	async loadModelDetails(modelLocation, modelDescription) {
@@ -67,32 +61,6 @@ class UserUploader extends Component {
 		}
 	}
 
-	initAzureBlobService = async () => {
-		/*
-		 * Initialises the Azure Blob Service connection and saves to the current application state.
-		 */
-		try {
-			console.log(process.env.REACT_APP_AZURE_STORAGE_ACCOUNT);
-			const blobServiceClient = new BlobServiceClient(
-				`https://${process.env.REACT_APP_AZURE_STORAGE_ACCOUNT}.blob.core.windows.net${SAS}`
-			);
-			this.setState({ azureBlobService: blobServiceClient });
-		} catch (err) {
-			throw `Failed to initialise Azure Blob Service connection. Please check the provided storage account and key is correct. ${err}`;
-		}
-	};
-
-	initContainerClient = async () => {
-		try {
-			const azureBlobService = this.state.azureBlobService;
-			const containerName = process.env.REACT_APP_AZURE_CONTAINER_NAME;
-			const n_containerClient = await azureBlobService.getContainerClient(containerName);
-			this.setState({ containerClient: n_containerClient });
-		} catch (err) {
-			throw `Failed to initialise Azure Blob Service connection. Please check the provided container name is correct. ${err}`;
-		}
-	};
-
 	async handleDrop(acceptedFiles) {
 		const fileExtension = 'zip';
 		const reader = new FileReader();
@@ -107,8 +75,8 @@ class UserUploader extends Component {
 			const file_name = `data/user-supplied/${Date.now()}_${file.name}`;
 			this.setState({ datasetLocation: file_name });
 			// Get a block blob client
-			const blockBlobClient = this.state.containerClient.getBlockBlobClient(file_name);
-
+			const blockBlobClient = this.props.containerClient.getBlockBlobClient(file_name);
+			this.setState({ uploaderVisibility: !this.state.uploaderVisibility });
 			const uploadBlobResponse = await blockBlobClient.upload(file, file.size);
 
 			console.log('Blob was uploaded successfully. requestId: ', uploadBlobResponse.requestId);
@@ -120,40 +88,31 @@ class UserUploader extends Component {
 	}
 
 	async downloadModelInfo(modelLocation) {
-		if (!this.state.containerClient) {
+		if (!this.props.containerClient) {
 			return;
 		}
 		const infoFile = fileCurrentDirectory(modelLocation) + '/info.txt';
 		console.log(infoFile);
-		const blobClient = this.state.containerClient.getBlockBlobClient(infoFile);
+		const blobClient = this.props.containerClient.getBlockBlobClient(infoFile);
 		const downloadBlockBlobResponse = await blobClient.download();
-		const downloaded = await this.blobToString(await downloadBlockBlobResponse.blobBody);
+		const downloaded = await blobToString(await downloadBlockBlobResponse.blobBody);
 		return downloaded;
 	}
 
 	async downloadArchitectureInfo(architecture) {
 		const infoFile = `models/mlweb-supplied/${architecture}/info.txt`;
 		console.log(infoFile);
-		const blobClient = this.state.containerClient.getBlockBlobClient(infoFile);
+		const blobClient = this.props.containerClient.getBlockBlobClient(infoFile);
 		const downloadBlockBlobResponse = await blobClient.download();
-		const downloaded = await this.blobToString(await downloadBlockBlobResponse.blobBody);
+		const downloaded = await blobToString(await downloadBlockBlobResponse.blobBody);
 		return downloaded;
 	}
 
-	async blobToString(blob) {
-		const fileReader = new FileReader();
-		return new Promise((resolve, reject) => {
-			fileReader.onloadend = (ev) => {
-				resolve(ev.target.result);
-			};
-			fileReader.onerror = reject;
-			fileReader.readAsText(blob);
-		});
-	}
-
 	async listAvailableModels() {
-		const n_containerClient = await this.state.azureBlobService.getContainerClient('testuploads');
-		const blobsRet = await n_containerClient.listBlobHierarchySegment('data/');
+		const n_containerClient = await this.props.azureBlobService.getContainerClient('testuploads');
+		const blobsRet = await n_containerClient.listBlobHierarchySegment('', undefined, {
+			prefix: 'models/mlweb-supplied/'
+		});
 		const modelArr = blobsRet['Blobs']['Blob'].map((blob) => blob['Name']).filter((blob) => blob.endsWith('.h5'));
 		const modelTypes = modelArr.map((model) => model.split('/')[2]);
 		var res = {};
@@ -170,9 +129,8 @@ class UserUploader extends Component {
 		console.log(res);
 	}
 
-	searchingHandler() {
-		this.setState({ uploaderVisibility: !this.state.uploaderVisibility });
-		this.listAvailableModels();
+	async searchingHandler() {
+		await this.listAvailableModels();
 	}
 
 	render() {
@@ -188,6 +146,7 @@ class UserUploader extends Component {
 						architectureInfo={this.state.availableModels[key]['info']}
 						models={this.state.availableModels[key]['models']}
 						trainFunc={this.loadModelDetails}
+						parentName={true}
 					/>
 				);
 				++i;
@@ -205,7 +164,7 @@ class UserUploader extends Component {
 										<section id="uploadSection">
 											<div {...getRootProps()}>
 												<input {...getInputProps()} />
-												<p>Drag 'n' drop train dataset here, or click to select folder</p>
+												<p>Drag 'n' drop dataset here, or click to select zip file</p>
 											</div>
 										</section>
 									)}
@@ -213,24 +172,22 @@ class UserUploader extends Component {
 							</div>
 						) : (
 							<div>
-								{this.state.availableModels ? (
-									<section>{modelArchs}</section>
-								) : (
+								{Object.keys(this.state.availableModels).length === 0 &&
+								this.state.availableModels.constructor === Object ? (
 									<section>
 										<BounceLoader />
-										<p id="searchPlaceholder">
-											Searching for models of type: {this.state.uploadedDatatype}
-										</p>
 									</section>
+								) : (
+									<section className="modelArchs">{modelArchs}</section>
 								)}
 							</div>
 						)}
-						<button id="fabNext" onClick={() => this.searchingHandler()}>
+						{/* <button id="fabNext" onClick={() => this.searchingHandler()}>
 							Next
-						</button>
+						</button> */}
 					</div>
 				) : (
-					<div class="modelCard">
+					<div className="modelCard">
 						<ReactMarkdown source={this.state.modelSelected['modelDescription']} />
 						<button
 							id="fabTrain"

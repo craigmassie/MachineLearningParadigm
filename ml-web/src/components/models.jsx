@@ -11,9 +11,8 @@ class Models extends Component {
 
 	render() {
 		if (this.props.models) {
-			console.log(this.props.models);
 			const availableModels = this.props.models.map((m, index) => (
-				<Model key={index} modelName={m} trainFunc={this.props.trainFunc} modelDescription="hello1" />
+				<Model key={index} modelName={m} trainFunc={this.props.trainFunc} parentName={this.props.parentName} />
 			));
 			return (
 				<React.Fragment>
@@ -21,7 +20,7 @@ class Models extends Component {
 						<h1 id="inlineHeader">{this.props.architecture}</h1>
 						<Popover
 							isOpen={this.state.isPopoverOpen}
-							position={'right'} // preferred position
+							position={'top'} // preferred position
 							content={({ position, targetRect, popoverRect }) => (
 								<ArrowContainer // if you'd like an arrow, you can import the ArrowContainer!
 									position={position}
