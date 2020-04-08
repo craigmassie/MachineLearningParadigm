@@ -176,8 +176,8 @@
 }
 
 .modelCard p,
-h2,
-h3 {
+.modelCard h2,
+.modelCard h3 {
 	padding: 0 50px;
 }
 
@@ -256,4 +256,29 @@ h3 {
 #predictImg {
 	height: 250px;
 	width: 250px;
+}
+
+.recharts-wrapper {
+	display: inline-block;
+}
+
+.testModel {
+	display: flex;
+	align-items: center;
+}
+
+.testUpload {
+	margin-left: 10px;
+}
+
+.testUpload h4 {
+	margin-bottom: 5px;
+}
+
+.trainingBody{
+	min-height: calc(100vh - 64px);
+}
+
+.footer{
+	margin-top: 64px;
 }

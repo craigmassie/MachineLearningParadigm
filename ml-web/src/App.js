@@ -6,6 +6,9 @@ import Training from './components/training';
 import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import { SAS } from './constants/constants';
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import Footer from 'rc-footer';
+import 'rc-footer/assets/index.css'; // import 'rc-footer/asssets/index.less';
+import { render } from 'react-dom';
 
 class App extends Component {
 	nowSearching() {
@@ -83,6 +86,7 @@ class App extends Component {
 						/>
 						<Route component={Error} />
 					</Switch>
+					<Footer className="footer" bottom="Made with 🤖 by Craig" />
 				</div>
 			</BrowserRouter>
 			// <div className="App">

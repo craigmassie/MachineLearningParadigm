@@ -182,7 +182,7 @@ class Training extends Component {
 		myHeaders.append("Content-Type", "application/json");
 		var raw;
 		if (blobfuse){
-			raw = JSON.stringify({"model_location":"/mnt/blobfusetmp/"+this.state.currentModel,"image_location":"/mnt/blobfusetmp/"+ fileCurrentDirectory(this.state.currentModel) + "/output.png"});
+			raw = JSON.stringify({"model_location":"/mnt/blobfusetmp/"+this.state.currentModel,"image_location":"/mnt/blobfusetmp/"+ fileCurrentDirectory(this.state.currentModel) + "/predict.png"});
 		}else{
 			raw = JSON.stringify({"model_location":this.state.currentModel,"image_url":this.state.testImageURL});
 		}
@@ -192,6 +192,8 @@ class Training extends Component {
 			body: raw,
 			redirect: 'follow'
 		  };
+		
+		  console.log(raw);
 		  
 		  fetch("https://mlwebtrain.azurewebsites.net/explainTest", requestOptions)
 			.then(response => response.text())
@@ -202,20 +204,23 @@ class Training extends Component {
 
 	render() {
 		return (
-			<div>
+			<div className="trainingBody">
 				{Object.keys(this.state.modelCards).length === 0 && this.state.modelCards.constructor === Object ? (
 					<h1 id="noTrain">
 						No models currently training. If you just kicked off a process, give us a moment.
 					</h1>
 				) : (
-					<section className="modelsTraining">{this.state.modelCards}</section>
+					<div className="modelsTraining">{this.state.modelCards}</div>
 				)}
 				{Object.keys(this.state.completeModels).length === 0 &&
 				this.state.completeModels.constructor === Object ? null : (
-					<section className="modelsTraining">{this.state.completeModels}</section>
+					<div className="modelsTraining">{this.state.completeModels}</div>
 				)}
 				{this.state.history.length === undefined || this.state.history.length === 0 ? null : (
 					<div>
+						<h1>Training Metrics</h1>
+
+						<h2>Accuracy and Loss over epochs</h2>
 						<LineChart width={400} height={400} data={this.state.history}>
 							<CartesianGrid strokeDasharray="3 3" />
 							<XAxis>
@@ -236,27 +241,26 @@ class Training extends Component {
 							<Legend />
 							<Line type="monotone" dataKey="accuracy" stroke="#8884d8" />
 						</LineChart>
-						{/* <Iframe
-							url={this.state.netronURL}
-							width="450px"
-							height="450px"
-							id="myId"
-							className="myClassname"
-							display="initial"
-							position="relative"
-							allowFullScreen="true"
-						/> */}
+
+						<h2>Test Model</h2>
+						<div className="testModel">
+							<img id = "predictImg" src={this.state.testImageURL}></img>
+							<div className="testUpload">
+								<h4>Upload Image URL to test:</h4>
+								<input type="text" onChange={this.handleChange}/>
+								<button onClick={this.handleClick}>Test Image</button>
+								{this.state.currentPred && <button onClick={this.explainImg}>Explain Prediction</button>}
+								<p>{this.state.currentPred}</p>
+							</div>
+						</div>
+
+						<h2>Export or Visualise Model</h2>
 						<a href={this.state.downloadURL} target="_blank">
 							<button>Download Model</button>
 						</a>
 						<a href={this.state.netronURL} target="_blank">
 							<button>Visualise Model on Netron</button>
 						</a>
-						<input type="text" onChange={this.handleChange}/>
-						<button onClick={this.handleClick}>Test Image</button>
-						<img id = "predictImg" src={this.state.testImageURL}></img>
-						{this.state.currentPred && <button onClick={this.explainImg}>Explain Prediction</button>}
-						<p>{this.state.currentPred}</p>
 					</div>
 				)}
 			</div>

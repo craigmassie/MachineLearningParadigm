@@ -4,7 +4,13 @@ import { BounceLoader } from 'react-spinners';
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
 import Models from './models';
 import { SAS } from '../constants/constants';
-import { fileExtensionExtract, createJsonPayload, fileCurrentDirectory, blobToString } from '../helpers/helper';
+import {
+	fileExtensionExtract,
+	createJsonPayload,
+	fileCurrentDirectory,
+	blobToString,
+	getParentDirectory
+} from '../helpers/helper';
 import { POST_URL } from '../constants/constants';
 import ReactMarkdown from 'react-markdown';
 
@@ -107,12 +113,27 @@ class UserUploader extends Component {
 		return downloaded;
 	}
 
+	isUserDefined(model) {
+		const modelArr = model.split('-');
+		return (
+			modelArr.length === 5 &&
+			modelArr[0].length === 8 &&
+			modelArr[1].length === 4 &&
+			modelArr[2].length === 4 &&
+			modelArr[3].length === 4 &&
+			modelArr[4].length === 12
+		);
+	}
+
 	async listAvailableModels() {
 		const n_containerClient = await this.props.azureBlobService.getContainerClient('testuploads');
 		const blobsRet = await n_containerClient.listBlobHierarchySegment('', undefined, {
 			prefix: 'models/mlweb-supplied/'
 		});
-		const modelArr = blobsRet['Blobs']['Blob'].map((blob) => blob['Name']).filter((blob) => blob.endsWith('.h5'));
+		const modelArr = blobsRet['Blobs']['Blob']
+			.map((blob) => blob['Name'])
+			.filter((blob) => blob.endsWith('.h5'))
+			.filter((blob) => !this.isUserDefined(getParentDirectory(blob)));
 		const modelTypes = modelArr.map((model) => model.split('/')[2]);
 		var res = {};
 		for (var i in modelTypes) {

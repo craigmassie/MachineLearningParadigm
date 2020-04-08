@@ -267,7 +267,7 @@ def explain_test():
                 app.logger.error(f"Failed to load model. {e}")
                 return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
         else:
-            app.logger.error(f"Model or image cannot be found a specified location. {e}")
+            app.logger.error(f"Model or image cannot be found a specified location.")
             return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
 if __name__ == '__main__':

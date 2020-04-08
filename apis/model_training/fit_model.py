@@ -45,7 +45,7 @@ class FitModelFromGenerators(Thread):
         self.logger.info(model_dir)
         infoTxt = os.path.join(model_dir, 'trainingInfo.txt')
         try:
-            os.mkdir(model_dir)
+            os.makedirs(model_dir, exist_ok=True)
             f = open(infoTxt, "w")
             f.write("Training")
             f.close()
