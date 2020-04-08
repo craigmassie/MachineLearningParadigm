@@ -15,6 +15,14 @@ import requests
 from PIL import Image
 from io import BytesIO
 import numpy as np
+import tensorflow.keras.applications.imagenet_utils as imn
+import os,sys
+import lime
+from lime import lime_image
+from skimage.segmentation import mark_boundaries
+from tensorflow.keras.preprocessing import image
+import tensorflow.keras.applications.imagenet_utils as imn
+import matplotlib.pyplot as plt
 
 
 app = Flask(__name__)
@@ -115,13 +123,16 @@ def _mount_blobfuse():
             and that sufficient priveledges are given to all for execution. {e}")
         return(400)
 
-def _url_to_img(model, image_url):
+def _url_to_img(model, image_url, model_location):
     input_dimensions = _get_input_dimensions(model)
     app.logger.info(f"id: {input_dimensions}")
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content)).convert('RGB')
+    r = requests.get(image_url, stream=True)
+    r.raw.decode_content = True # Content-Encoding
+    img = Image.open(r.raw)
     if img.size != input_dimensions:
         img = img.resize(input_dimensions, Image.LANCZOS)
+    save_location = os.path.join(os.path.dirname(model_location), "predict.png")
+    img.save(save_location)
     x = tf.keras.preprocessing.image.img_to_array(img)
     x = np.expand_dims(x, axis=0)
     return x
@@ -139,7 +150,8 @@ def train_model():
     }
     """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    if(_mount_blobfuse()) == 400: return(400)
+    if not os.path.isdir('/mnt/blobfusetmp/'):
+        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
 
@@ -174,7 +186,13 @@ def train_model():
     model_fit_thread.start()
     app.logger.info(f"Output directory: {os.path.join(os.path.dirname(model_location), str(unique_id))}")
     class_file_loc = os.path.join(os.path.dirname(model_location), str(unique_id), "classes.npy")
-    np.save(class_file_loc, train_gen.class_indices)
+    app.logger.info(f"Saving numpy array to: {class_file_loc}")
+    try:
+        if not(os.path.isdir(os.path.dirname(class_file_loc))):
+            os.makedirs(os.path.dirname(class_file_loc), exist_ok = True) 
+        np.save(class_file_loc, train_gen.class_indices, allow_pickle=True)
+    except Exception as e:
+        app.logger.info(f"Failed to save classes {e}")
     #Model computation still run in thread and saved to blob storage, while Flask response returns successfully training process start.
     if(model_fit_thread.is_alive()):
         # model_fit_thread.join()
@@ -185,7 +203,8 @@ def train_model():
 @app.route('/testModel', methods=['POST'])
 def test_model():
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    if(_mount_blobfuse()) == 400: return(400)
+    if not os.path.isdir('/mnt/blobfusetmp/'):
+        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
 
@@ -194,7 +213,7 @@ def test_model():
     if (os.path.isfile(model_location)):
         try:
             model = tf.keras.models.load_model(model_location)
-            image = _url_to_img(model, image_url)
+            image = _url_to_img(model, image_url, model_location)
             prediction = np.squeeze(model.predict(image)).tolist()
             prediction = [float(x) for x in prediction]
             classes_file = os.path.join(os.path.dirname(model_location), "classes.npy")
@@ -208,7 +227,48 @@ def test_model():
                 return results_dict
         except Exception as e:
             app.logger.error(f"Failed to load model. {e}")
-            return(400)
+            return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+@app.route('/explainTest', methods=['POST'])
+def explain_test():
+        d = request.get_json()
+        model_location, image_location = _request_key_exists(d, "model_location"), _request_key_exists(d, "image_location")
+        try:
+            model = tf.keras.models.load_model(model_location)
+        except Exception as e:
+            app.logger.error(f"Failed to load model. {e}")
+            return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+        def transform_img_fn(path_list):
+            out = []
+            for img_path in path_list:
+                img = image.load_img(img_path, target_size=(32, 32))
+                x = image.img_to_array(img)
+                x = np.expand_dims(x, axis=0)
+                x = imn.preprocess_input(x, mode="tf")
+                out.append(x)
+            return np.vstack(out)
+
+        def predict_func(images):
+            return np.squeeze(model.predict(images))
+
+        #Retrieve info about model and dataset from body
+        if (os.path.isfile(model_location) and os.path.isfile(image_location)):
+            try:
+                images = transform_img_fn([image_location])
+                # plt.imsave(save_location, images[0])
+                explainer = lime_image.LimeImageExplainer()
+                explanation = explainer.explain_instance(images[0], predict_func, hide_color=0, num_samples=1000)
+                temp, mask = explanation.get_image_and_mask(explanation.top_labels[0], positive_only=False, num_features=10, hide_rest=False)
+                save_location = os.path.join(os.path.dirname(model_location), "output.png")
+                plt.imsave(save_location, mark_boundaries(temp / 2 + 0.5, mask))
+                return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+            except Exception as e:
+                app.logger.error(f"Failed to load model. {e}")
+                return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+        else:
+            app.logger.error(f"Model or image cannot be found a specified location. {e}")
+            return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

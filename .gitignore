@@ -313,4 +313,8 @@ sketch
 .history
 
 ml-web/src/constants/constants.js
+*.h5
+*.jpeg
+*.png
+*.jpg
 # End of https://www.gitignore.io/api/node,react,macos,flask,python,visualstudiocode

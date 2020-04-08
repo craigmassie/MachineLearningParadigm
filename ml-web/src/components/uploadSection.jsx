@@ -26,7 +26,6 @@ class UserUploader extends Component {
 		if (blobFuse) {
 			modelLocation = '/mnt/blobfusetmp/' + modelLocation;
 			datasetLocation = '/mnt/blobfusetmp/' + datasetLocation;
-			datasetLocation = '/mnt/blobfusetmp/data/mlweb-supplied/initial-test/';
 			console.log(datasetLocation);
 		}
 
@@ -40,7 +39,7 @@ class UserUploader extends Component {
 
 		xhr.open('POST', 'https://mlwebtrain.azurewebsites.net/trainModel');
 		xhr.setRequestHeader('Content-Type', 'application/json');
-		const jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 1));
+		const jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 5));
 		xhr.send(jsonPayload);
 		const resp = xhr.responseText;
 		console.log(resp);
@@ -72,7 +71,7 @@ class UserUploader extends Component {
 		const file = acceptedFiles[0];
 		const currExtension = fileExtensionExtract(file.name);
 		if (currExtension == fileExtension) {
-			const file_name = `data/user-supplied/${Date.now()}_${file.name}`;
+			const file_name = `data/user-supplied/${file.name}`;
 			this.setState({ datasetLocation: file_name });
 			// Get a block blob client
 			const blockBlobClient = this.props.containerClient.getBlockBlobClient(file_name);

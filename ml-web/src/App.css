@@ -252,3 +252,8 @@ h3 {
 #noTrain {
 	text-align: center;
 }
+
+#predictImg {
+	height: 250px;
+	width: 250px;
+}
