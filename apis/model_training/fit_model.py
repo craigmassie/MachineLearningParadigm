@@ -69,7 +69,7 @@ class FitModelFromGenerators(Thread):
 
 class FitModelFromTrainTest(Thread):
     """
-    Holding off implementation until training from generators tested on Azure.
+    TODO: Holding off implementation until training from generators tested on Azure.
     """
     def __init__(self):
         pass

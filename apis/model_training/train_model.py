@@ -23,14 +23,14 @@ from skimage.segmentation import mark_boundaries
 from tensorflow.keras.preprocessing import image
 import tensorflow.keras.applications.imagenet_utils as imn
 import matplotlib.pyplot as plt
-
+import train_auto
 
 app = Flask(__name__)
 api = Api(app)
 num_classes = 10
 BLOBFUSE_MOUNT_SCRIPT = "/app/mount-blobfuse.sh"
 
-def _request_key_exists(d, request_key):
+def _request_key_required(d, request_key):
     try:
         request_value = d[request_key]
     except KeyError:
@@ -83,7 +83,7 @@ def _get_input_dimensions(model):
 def _get_initial_model(model_location):
     return tf.keras.models.load_model(model_location)
 
-def _load_dataset_into_gen(dataset_location, expected_model_input):
+def _load_dataset_into_gen(dataset_location, expected_model_input_size):
     filename = os.path.basename(dataset_location).split('.')[0]
     if(dataset_location.endswith(".zip")):
         extraction_dir = os.path.splitext(dataset_location)[0]
@@ -105,10 +105,10 @@ def _load_dataset_into_gen(dataset_location, expected_model_input):
         app.logger.error(f"Unable to find training data directory at location {test_data_location}")
 
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(validation_split=0.2)
-    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input, shuffle=True, seed=42)
+    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input_size, shuffle=True, seed=42)
 
     test_datagen = tf.keras.preprocessing.image.ImageDataGenerator()
-    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input, shuffle=True, seed=42)
+    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input_size, shuffle=True, seed=42)
     return train_generator, test_generator
 
 def _mount_blobfuse():
@@ -137,6 +137,14 @@ def _url_to_img(model, image_url, model_location):
     x = np.expand_dims(x, axis=0)
     return x
 
+def _request_key_optional(d, request_key):
+    try:
+        request_value = d[request_key]
+        return request_value
+    except KeyError:
+        return None
+
+
 @app.route('/trainModel', methods=['POST'])
 def train_model():
     """
@@ -147,16 +155,28 @@ def train_model():
         "model_location": ${LOCATION_OF_BASELINE_MODEL},
         "dataset_location": ${LOCATION_OF_TRAIN_TEST_DATA},
         "epochs": ${NUM_OF_TRAINING_EPOCHS}
+        "auto_type": ${AUTO_KERAS_TYPE}
     }
     """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    if not os.path.isdir('/mnt/blobfusetmp/'):
-        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+    # if not os.path.isdir('/mnt/blobfusetmp/'):
+    #     if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
+    unique_id = uuid.uuid1()
 
     #Retrieve info about model and dataset from body
-    model_location, dataset_location, epochs = _request_key_exists(d, "model_location"), _request_key_exists(d, "dataset_location"), _request_key_exists(d, "epochs")
+    model_location, dataset_location, epochs, auto_type, trials = _request_key_required(d, "model_location"), _request_key_required(d, "dataset_location"), _request_key_required(d, "epochs"), _request_key_optional(d, "auto_type"), _request_key_optional(d, "trials")
+
+    if (auto_type and epochs and trials):
+        #model_location in this instance is the parent dir to save under
+        auto_fit_thread = train_auto.AutoMLTrain(request.__copy__(), model_location, dataset_location, unique_id, auto_type, app.logger, epochs, trials)
+        auto_fit_thread.start()
+        if(auto_fit_thread.is_alive()):
+            auto_fit_thread.join()
+            return f"Model successfully created and training. Model id: {str(unique_id)}."
+        else:
+            return "Model training thread could not successfully be created."
 
     #Load the model stored at the requested model location
     initial_model = _get_initial_model(model_location)
@@ -180,7 +200,6 @@ def train_model():
     app.logger.info(f"Model Summary: {transfer_model.summary()}")
 
     # Create unique ID and initialise model training thread.
-    unique_id = uuid.uuid1()
     app.logger.info(f"ci {train_gen.class_indices}")
     model_fit_thread = fit_model.FitModelFromGenerators(request.__copy__(), transfer_model, train_gen, test_gen, unique_id, model_location, epochs)
     model_fit_thread.start()
@@ -203,19 +222,26 @@ def train_model():
 @app.route('/testModel', methods=['POST'])
 def test_model():
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    if not os.path.isdir('/mnt/blobfusetmp/'):
-        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+    # if not os.path.isdir('/mnt/blobfusetmp/'):
+    #     if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
 
     #Retrieve info about model and dataset from body
-    model_location, image_url = _request_key_exists(d, "model_location"), _request_key_exists(d, "image_url")
+    model_location, image_url = _request_key_required(d, "model_location"), _request_key_required(d, "image_url")
     if (os.path.isfile(model_location)):
+        if(model_location.endswith('.pb')):
+            model_location = os.path.dirname(model_location)
         try:
             model = tf.keras.models.load_model(model_location)
             image = _url_to_img(model, image_url, model_location)
             prediction = np.squeeze(model.predict(image)).tolist()
-            prediction = [float(x) for x in prediction]
+            if (type(prediction) == list):
+                prediction = [float(x) for x in prediction]
+            elif (type(prediction) != float):
+                app.logger.error(f"Failed to load predictions, expected type list or float. {e}")
+                return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+            print(prediction)
             classes_file = os.path.join(os.path.dirname(model_location), "classes.npy")
             if os.path.isfile(classes_file):
                 class_indices = np.load(classes_file, allow_pickle = True).item()
@@ -226,13 +252,14 @@ def test_model():
                 results_dict = { k:v for (k,v) in enumerate(prediction)}
                 return results_dict
         except Exception as e:
+            raise(e)
             app.logger.error(f"Failed to load model. {e}")
             return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
 @app.route('/explainTest', methods=['POST'])
 def explain_test():
         d = request.get_json()
-        model_location, image_location = _request_key_exists(d, "model_location"), _request_key_exists(d, "image_location")
+        model_location, image_location = _request_key_required(d, "model_location"), _request_key_required(d, "image_location")
         try:
             model = tf.keras.models.load_model(model_location)
         except Exception as e:

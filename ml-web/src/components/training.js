@@ -155,7 +155,7 @@ class Training extends Component {
 	}
 
 	handleClick(blobfuse=true){
-		this.setState({currentPred : ""});
+		this.setState({currentPred : "Loading..."});
 		var myHeaders = new Headers();
 		myHeaders.append("Content-Type", "application/json");
 		var raw;
