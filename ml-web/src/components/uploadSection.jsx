@@ -14,6 +14,7 @@ import {
 import { POST_URL } from '../constants/constants';
 import ReactMarkdown from 'react-markdown';
 
+const AUTOML_PLACEHOLDER_FILE = 'ph.h5';
 class UserUploader extends Component {
 	state = {
 		uploaderVisibility: true,
@@ -35,6 +36,15 @@ class UserUploader extends Component {
 			console.log(datasetLocation);
 		}
 
+		var jsonPayload;
+		// If the "model" we're training on is actually the placeholder for AutoML
+		if (modelLocation.endsWith(AUTOML_PLACEHOLDER_FILE)) {
+			modelLocation = fileCurrentDirectory(modelLocation);
+			jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 5, 'ImageClassifier', 1));
+		} else {
+			jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 5));
+		}
+
 		var xhr = new XMLHttpRequest();
 
 		xhr.addEventListener('readystatechange', function() {
@@ -43,13 +53,14 @@ class UserUploader extends Component {
 			}
 		});
 
-		xhr.open('POST', 'https://mlwebtrain.azurewebsites.net/trainModel');
-		xhr.setRequestHeader('Content-Type', 'application/json');
-		const jsonPayload = JSON.stringify(createJsonPayload(modelLocation, datasetLocation, 5));
-		xhr.send(jsonPayload);
-		const resp = xhr.responseText;
-		console.log(resp);
-		return resp;
+		console.log(jsonPayload);
+		// xhr.open('POST', 'https://mlwebtrain.azurewebsites.net/trainModel');
+		// xhr.open('POST', 'http://0.0.0.0:5000/trainModel');
+		// xhr.setRequestHeader('Content-Type', 'application/json');
+		// xhr.send(jsonPayload);
+		// const resp = xhr.responseText;
+		// console.log(resp);
+		// return resp;
 	}
 
 	async loadModelDetails(modelLocation, modelDescription) {

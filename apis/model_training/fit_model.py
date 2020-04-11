@@ -3,6 +3,7 @@ import os
 import logging
 import json
 import io
+import numpy as np
 
 class FitModelFromGenerators(Thread):
     """
@@ -40,6 +41,24 @@ class FitModelFromGenerators(Thread):
                             separators=(',', ': '), ensure_ascii=False)
             historyfile.write(to_unicode(hist_output))
 
+    def _get_arr_from_gen(self, generator):
+        x_size = (generator.samples,) + (generator.image_shape)
+        y_size = (generator.samples,) + (generator.num_classes,) 
+        x_app = np.empty(shape = x_size)
+        y_app = []
+
+        batch_index = 0
+        batch_size = generator.batch_size
+        while batch_index <= generator.batch_index:
+            data = generator.next()
+            for idx, x in enumerate(data[0]):
+                x_app[(idx + (batch_index*batch_size))] = x
+            for _, x in enumerate(data[1]):
+                y_app.append(x)
+            batch_index = batch_index + 1
+
+        return x_app, np.array(y_app)
+
     def run(self):
         model_dir= os.path.join(os.path.dirname(self.model_location), self.unique_id)
         self.logger.info(model_dir)
@@ -53,8 +72,11 @@ class FitModelFromGenerators(Thread):
             self.logger.error(f"Unable to create directory to save model. {e}")
         self.logger.info("Attempting to fit model.")
         try:
-            history = self.model.fit_generator(generator=self.train_gen, epochs=self.epochs, verbose=1)
-            score = self.model.evaluate_generator(self.test_gen)
+            '''fit_from_generator deprecated, steps_per_epoch required as per issue https://github.com/tensorflow/tensorflow/issues/35422'''
+            (x_train, y_train) = self._get_arr_from_gen(self.train_gen)
+            (x_test, y_test) = self._get_arr_from_gen(self.test_gen)
+            history = self.model.fit(x=x_train, y=y_train, epochs=self.epochs, verbose=1, validation_split=0.2)
+            score = self.model.evaluate(x=x_test, y=y_test)
             model_file_name = ''.join([self.unique_id, ".h5"])
             self._save_model_performance_metrics(score, model_dir, history)
             model_save_location = os.path.join(model_dir, model_file_name)

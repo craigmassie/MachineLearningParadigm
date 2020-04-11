@@ -1,8 +1,14 @@
-export function createJsonPayload(modelLocation, datasetLocation, epochs) {
+export function createJsonPayload(modelLocation, datasetLocation, epochs, autoType = '', trials = 0) {
 	const payload = new Object();
 	payload.model_location = modelLocation;
 	payload.dataset_location = datasetLocation;
 	payload.epochs = epochs;
+	if (autoType.length > 0) {
+		payload.auto_type = autoType;
+	}
+	if (trials > 0) {
+		payload.trials = trials;
+	}
 	return payload;
 }
 

@@ -177,7 +177,10 @@ class Training extends Component {
 			.catch(error => console.log('error', error));
 	}
 
-	explainImg(blobfuse=true){
+	async explainImg(blobfuse=true){
+		const outputTest = fileCurrentDirectory(this.state.currentModel) + "/output.png";
+		const modelBlobClient = this.state.containerClient.getBlockBlobClient(outputTest);
+		const deleteContainerResponse = await modelBlobClient.delete();
 		var myHeaders = new Headers();
 		myHeaders.append("Content-Type", "application/json");
 		var raw;

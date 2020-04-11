@@ -24,6 +24,7 @@ from tensorflow.keras.preprocessing import image
 import tensorflow.keras.applications.imagenet_utils as imn
 import matplotlib.pyplot as plt
 import train_auto
+import autokeras as ak
 
 app = Flask(__name__)
 api = Api(app)
@@ -104,11 +105,11 @@ def _load_dataset_into_gen(dataset_location, expected_model_input_size):
     if not os.path.exists(test_data_location):
         app.logger.error(f"Unable to find training data directory at location {test_data_location}")
 
-    train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(validation_split=0.2)
-    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input_size, shuffle=True, seed=42)
+    train_datagen = tf.keras.preprocessing.image.ImageDataGenerator()
+    train_generator = train_datagen.flow_from_directory(training_data_location, target_size=expected_model_input_size, shuffle=True, seed=42, batch_size=16, subset='training')
 
     test_datagen = tf.keras.preprocessing.image.ImageDataGenerator()
-    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input_size, shuffle=True, seed=42)
+    test_generator = test_datagen.flow_from_directory(test_data_location, target_size=expected_model_input_size, shuffle=True, seed=42, batch_size=16)
     return train_generator, test_generator
 
 def _mount_blobfuse():
@@ -159,8 +160,8 @@ def train_model():
     }
     """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    if not os.path.isdir('/mnt/blobfusetmp/'):
-        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+    # if not os.path.isdir('/mnt/blobfusetmp/'):
+    #     if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
     unique_id = uuid.uuid1()
@@ -174,7 +175,7 @@ def train_model():
         auto_fit_thread.start()
         if(auto_fit_thread.is_alive()):
             auto_fit_thread.join()
-            return f"Model successfully created and training. Model id: {str(unique_id)}."
+            return f"Auto model successfully created and training. Model id: {str(unique_id)}."
         else:
             return "Model training thread could not successfully be created."
 
@@ -233,7 +234,8 @@ def test_model():
         if(model_location.endswith('.pb')):
             model_location = os.path.dirname(model_location)
         try:
-            model = tf.keras.models.load_model(model_location)
+            print(ak.CUSTOM_OBJECTS)
+            model = tf.keras.models.load_model(model_location, custom_objects=ak. CUSTOM_OBJECTS)
             image = _url_to_img(model, image_url, model_location)
             prediction = np.squeeze(model.predict(image)).tolist()
             if (type(prediction) == list):
@@ -246,9 +248,13 @@ def test_model():
             if os.path.isfile(classes_file):
                 class_indices = np.load(classes_file, allow_pickle = True).item()
                 class_keys = [x.strip() for x in list(class_indices.keys())]
+                if(type(prediction) == float):
+                    prediction = [1.0 - prediction, prediction]
                 results_dict = { k:v for (k,v) in zip(class_keys, prediction)}
                 return results_dict
             else:
+                if(type(prediction) == float):
+                    prediction = [1.0 - prediction, prediction]
                 results_dict = { k:v for (k,v) in enumerate(prediction)}
                 return results_dict
         except Exception as e:
@@ -261,7 +267,8 @@ def explain_test():
         d = request.get_json()
         model_location, image_location = _request_key_required(d, "model_location"), _request_key_required(d, "image_location")
         try:
-            model = tf.keras.models.load_model(model_location)
+            model = tf.keras.models.load_model(model_location,custom_objects=ak. CUSTOM_OBJECTS)
+            input_dimensions = _get_input_dimensions(model)
         except Exception as e:
             app.logger.error(f"Failed to load model. {e}")
             return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
@@ -269,7 +276,7 @@ def explain_test():
         def transform_img_fn(path_list):
             out = []
             for img_path in path_list:
-                img = image.load_img(img_path, target_size=(32, 32))
+                img = image.load_img(img_path, target_size=input_dimensions)
                 x = image.img_to_array(img)
                 x = np.expand_dims(x, axis=0)
                 x = imn.preprocess_input(x, mode="tf")
@@ -277,7 +284,8 @@ def explain_test():
             return np.vstack(out)
 
         def predict_func(images):
-            return np.squeeze(model.predict(images))
+            prediction = model.predict(images)
+            return np.squeeze(prediction)
 
         #Retrieve info about model and dataset from body
         if (os.path.isfile(model_location) and os.path.isfile(image_location)):
@@ -285,13 +293,18 @@ def explain_test():
                 images = transform_img_fn([image_location])
                 # plt.imsave(save_location, images[0])
                 explainer = lime_image.LimeImageExplainer()
-                explanation = explainer.explain_instance(images[0], predict_func, hide_color=0, num_samples=1000)
+                print(type(model.layers[-1]))
+                if(type(model.layers[-1]) == ak.keras_layers.Sigmoid):
+                    explanation = explainer.explain_instance(images[0], model.predict, hide_color=0, num_samples=1000)
+                else:
+                    explanation = explainer.explain_instance(images[0], predict_func, hide_color=0, num_samples=1000)
                 temp, mask = explanation.get_image_and_mask(explanation.top_labels[0], positive_only=False, num_features=10, hide_rest=False)
                 save_location = os.path.join(os.path.dirname(model_location), "output.png")
                 plt.imsave(save_location, mark_boundaries(temp / 2 + 0.5, mask))
                 return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
             except Exception as e:
                 app.logger.error(f"Failed to load model. {e}")
+                raise(e)
                 return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
         else:
             app.logger.error(f"Model or image cannot be found a specified location.")

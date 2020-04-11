@@ -8,12 +8,14 @@ import tensorflow as tf
 import numpy as np
 import zipfile
 import uuid
-from keras.callbacks import CSVLogger
+from tensorflow.keras.callbacks import CSVLogger
 import csv
 
 class AutoMLTrain(Thread):
     """
-    Thread to train a given model, from train and test generators that flow from directory. Model and its metric later saved to disk.
+    Thread to train a Auto-Keras model of the type specified by auto_type. 
+    Evaluates a ∍ A for number of epochs, where |A| = trials.
+    Model and metrics saved to disk at model_location.
     """
     def __init__(self, request, model_location, dataset_location, unique_id, auto_type, logger, epochs=5, trials=10):
         Thread.__init__(self)
@@ -74,7 +76,7 @@ class AutoMLTrain(Thread):
     def _create_history_json(self, csv_location, score):
         VAL_ACCURACY_CSV_INDEX = 3
         VAL_LOSS_CSV_INDEX = 4
-        
+
         with open(csv_location, newline='') as f:
             reader = csv.reader(f)
             data = list(reader)
@@ -97,7 +99,8 @@ class AutoMLTrain(Thread):
 
     def _export_model(self, clf):
         model = clf.export_model()
-        model.save(os.path.join(self.model_location, self.unique_id))
+        file_name = self.unique_id + ".h5"
+        model.save(os.path.join(self.model_location, self.unique_id, file_name))
 
     def run(self):
         if self.auto_type != "ImageClassifier": return
