@@ -1,0 +1,11 @@
+Flask==1.1.1
+flask-restful==0.3.7
+azure-storage-blob==12.1.0
+cryptography==2.7
+scikit-learn==0.21.3 
+scipy==1.4.1 
+Pillow==6.2.0    
+lime==0.2.0.0
+matplotlib==3.1.1 
+autokeras==1.0.2
+tf-nightly==2.2.0.dev20200410  
