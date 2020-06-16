@@ -14,7 +14,7 @@ import csv
 class AutoMLTrain(Thread):
     """
     Thread to train a Auto-Keras model of the type specified by auto_type. 
-    Evaluates a ∍ A for number of epochs, where |A| = trials.
+    Evaluates a ∈ A for number of epochs, where |A| = trials.
     Model and metrics saved to disk at model_location.
     """
     def __init__(self, request, model_location, dataset_location, unique_id, auto_type, logger, epochs=5, trials=10):
