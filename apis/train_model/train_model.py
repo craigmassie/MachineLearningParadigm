@@ -39,23 +39,6 @@ def _request_key_required(d, request_key):
         abort(400)
     return request_value
 
-#Should we even be doing this? Maybe only for FCN?
-def _alter_model_input_size(model, new_input_shape):
-    model_layers = [l for l in model._layers]
-    #Replace input layer with one of correct size
-    model_layers[0] = tf.keras.layers.Input(shape=new_input_shape)
-    #Ensure output from new layer flows into next layer in model
-    model_layers[1] = model_layers[1](model_layers[0])
-
-    curr = model_layers[1]
-    #Propogate changes to rest of layers. Not trainable (because transfer learning, and all that jazz).
-    for i in range(2, len(model_layers)):
-        model_layers[i].trainable = False
-        curr = model_layers[i](curr)
-        model_layers[i] = curr
-
-    return model_layers
-
 def _add_classifier_to_model(model, num_classes):
     model_layers = model._layers
     for l in model_layers: l.trainable = False
