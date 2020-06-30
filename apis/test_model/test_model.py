@@ -19,7 +19,7 @@ def _request_key_required(d, request_key):
     try:
         request_value = d[request_key]
     except KeyError:
-        app.logger.error(f"'{request_key}' key not found in request body. Unable to find begin training.")
+        app.logger.error(f"'{request_key}' key not found in request body. Unable to find test model.")
         abort(400)
     return request_value
 
@@ -65,8 +65,38 @@ def _url_to_img(model, image_url, model_location):
     x = np.expand_dims(x, axis=0)
     return x
 
+def _get_formatted_prediction(model_location, prediction):
+    if (type(prediction) == list):
+            prediction = [float(x) for x in prediction]
+    elif (type(prediction) != float):
+        app.logger.error(f"Failed to load predictions, expected type list or float. {e}")
+        return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+    classes_file = os.path.join(os.path.dirname(model_location), "classes.npy")
+    if os.path.isfile(classes_file):
+        class_indices = np.load(classes_file, allow_pickle = True).item()
+        class_keys = [x.strip() for x in list(class_indices.keys())]
+        if(type(prediction) == float):
+            prediction = [1.0 - prediction, prediction]
+        results_dict = { k:v for (k,v) in zip(class_keys, prediction)}
+        return results_dict
+    else:
+        if(type(prediction) == float):
+            prediction = [1.0 - prediction, prediction]
+        results_dict = { k:v for (k,v) in enumerate(prediction)}
+        return results_dict 
+
 @app.route('/testModel', methods=['POST'])
 def test_model():
+    """
+    Given a request containing the model location, and image to predict, return a key/value pair of prediction class 
+    and probability of that image belonging to the class.
+
+    Takes a POST request of the form:
+    {
+        "model_location": ${LOCATION_OF_BASELINE_MODEL},
+        "image_url": ${URL_OF_IMAGE_TO_PREDICT},
+    }
+    """
     #Mount Azure Blob Storage as a virtual file system in Docker Container
     if not os.path.isdir('/mnt/blobfusetmp/'):
         if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
@@ -75,36 +105,35 @@ def test_model():
 
     #Retrieve info about model and dataset from body
     model_location, image_url = _request_key_required(d, "model_location"), _request_key_required(d, "image_url")
-    if (os.path.isfile(model_location)):
-        if(model_location.endswith('.pb')):
-            model_location = os.path.dirname(model_location)
-        try:
-            model = tf.keras.models.load_model(model_location, custom_objects=ak. CUSTOM_OBJECTS)
-            image = _url_to_img(model, image_url, model_location)
-            prediction = np.squeeze(model.predict(image)).tolist()
-            if (type(prediction) == list):
-                prediction = [float(x) for x in prediction]
-            elif (type(prediction) != float):
-                app.logger.error(f"Failed to load predictions, expected type list or float. {e}")
-                return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
-            print(prediction)
-            classes_file = os.path.join(os.path.dirname(model_location), "classes.npy")
-            if os.path.isfile(classes_file):
-                class_indices = np.load(classes_file, allow_pickle = True).item()
-                class_keys = [x.strip() for x in list(class_indices.keys())]
-                if(type(prediction) == float):
-                    prediction = [1.0 - prediction, prediction]
-                results_dict = { k:v for (k,v) in zip(class_keys, prediction)}
-                return results_dict
-            else:
-                if(type(prediction) == float):
-                    prediction = [1.0 - prediction, prediction]
-                results_dict = { k:v for (k,v) in enumerate(prediction)}
-                return results_dict
-        except Exception as e:
-            raise(e)
-            app.logger.error(f"Failed to load model. {e}")
-            return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+    if (not os.path.isfile(model_location)): 
+        app.logger.error(f"Failed to find model at given location.")
+        return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+    if(model_location.endswith('.pb')):
+        model_location = os.path.dirname(model_location)
+
+    try:
+        model = tf.keras.models.load_model(model_location, custom_objects=ak. CUSTOM_OBJECTS)
+    except Exception as e:
+        raise(e)
+        app.logger.error(f"Failed to load model. {e}")
+        return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+    try:    
+        image = _url_to_img(model, image_url, model_location)
+    except Exception as e:
+        raise(e)
+        app.logger.error(f"Failed to load image from url. {e}")
+        return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+
+    try:    
+        prediction = np.squeeze(model.predict(image)).tolist()
+        return _get_formatted_prediction(model_location, prediction)
+    except Exception as e:
+        raise(e)
+        app.logger.error(f"Failed to classify image. {e}")
+        return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
