@@ -142,9 +142,10 @@ def train_model():
         "auto_type": ${AUTO_KERAS_TYPE}
     }
     """
+    
     #Mount Azure Blob Storage as a virtual file system in Docker Container
-    # if not os.path.isdir('/mnt/blobfusetmp/'):
-    #     if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
+    if not os.path.isdir('/mnt/blobfusetmp/'):
+        if(_mount_blobfuse()) == 400: return json.dumps({'success':False}), 400, {'ContentType':'application/json'} 
 
     d = request.get_json()
     unique_id = uuid.uuid1()
