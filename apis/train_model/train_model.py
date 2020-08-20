@@ -139,8 +139,8 @@ def train_model():
     {
         "model_location": ${LOCATION_OF_BASELINE_MODEL},
         "dataset_location": ${LOCATION_OF_TRAIN_TEST_DATA},
-        "epochs": ${NUM_OF_TRAINING_EPOCHS}
-        "auto_type": ${AUTO_KERAS_TYPE}
+        "epochs": ${NUM_OF_TRAINING_EPOCHS},
+        "auto_type": ${AUTO_KERAS_TYPE},
         "trials": ${NUM_OF_TRIAL_ARCHITECTURES}
     }
     """
