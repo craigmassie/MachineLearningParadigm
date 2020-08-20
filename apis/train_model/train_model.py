@@ -132,7 +132,8 @@ def _request_key_optional(d, request_key):
 @app.route('/trainModel', methods=['POST'])
 def train_model():
     """
-    Given environment variables specifiying Azure connection, and model/dataset location initialises transfer learning training.
+    Given environment variables specifiying Azure connection, and model/dataset location initialises transfer learning training. 
+    The keys {"auto_type", "trials"} are optional, but are required to enable Auto-Keras functionality (only "ImageClassifier" currently supported as type).
 
     Takes a POST request of the form:
     {
@@ -140,6 +141,7 @@ def train_model():
         "dataset_location": ${LOCATION_OF_TRAIN_TEST_DATA},
         "epochs": ${NUM_OF_TRAINING_EPOCHS}
         "auto_type": ${AUTO_KERAS_TYPE}
+        "trials": ${NUM_OF_TRIAL_ARCHITECTURES}
     }
     """
     
