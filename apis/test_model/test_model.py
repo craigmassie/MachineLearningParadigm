@@ -48,7 +48,7 @@ def _mount_blobfuse():
             raise FileExistsError(f"{BLOBFUSE_MOUNT_SCRIPT} not found.")
     except Exception as e:
         app.logger.error(f"Issue with running blobfuse mounting script {BLOBFUSE_MOUNT_SCRIPT}, please ensure that file exists \
-            and that sufficient priveledges are given to all for execution. {e}")
+            and that sufficient privileges are given to all for execution. {e}")
         return(400)
 
 def _url_to_img(model, image_url, model_location):
